@@ -6,6 +6,10 @@
 [![CD Badge](https://github.com/axis7818/dotpatina/actions/workflows/continuous-deployment.yaml/badge.svg?branch=main)](https://github.com/axis7818/patina/actions/workflows/continuous-deployment.yaml)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
+<p align="center">
+  <img src="./dotpatina.webp" alt="dotpatina cover image">
+</p>
+
 dotpatina is a rust application for managing system dotfiles and configuration.
 
 ## Installation
