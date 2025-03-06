@@ -115,7 +115,7 @@ impl PatinaCli {
     }
 }
 
-/// A struct for defining PatinaInterface behavior for the CLI
+/// A struct for defining PatinaInterface behavior for the CLI.
 struct CliPatinaInterface {
     /// Whether input is enabled. When `false`, the CLI will not prompt for user confirmation
     /// and the CLI will continue until the action has completed or failed.
