@@ -8,6 +8,7 @@
 
 <div align="center">
   <img src="./dotpatina.png" alt="dotpatina cover image" style="max-width: 256px;">
+  <p style="font-size: .9em"><em>"generate an image of the rust crab applying a patina to a computer"</em></p>
 </div>
 
 dotpatina is a rust application for managing system dotfiles and configuration.
