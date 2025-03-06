@@ -4,8 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'src/**'
 
 jobs:
   check-version:
@@ -18,4 +16,5 @@ jobs:
           fetch-depth: 0
 
       - name: Check Cargo version
+        if: github.event.pull_request.changed_files.*.includes('src/')
         run: scripts/check_version.sh
