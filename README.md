@@ -7,7 +7,7 @@
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 <p align="center">
-  <img src="./dotpatina.webp" alt="dotpatina cover image">
+  <img src="./dotpatina.png" alt="dotpatina cover image" style="max-width: 256px;">
 </p>
 
 dotpatina is a rust application for managing system dotfiles and configuration.
