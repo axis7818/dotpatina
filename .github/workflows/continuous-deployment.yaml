@@ -27,4 +27,4 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         # only publish if the version has incremented
-        run: ./scripts/check_version.sh && cargo publish || true
+        run: ./scripts/check_version.sh HEAD^1 && cargo publish || true

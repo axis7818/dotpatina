@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 
-PREV_VERSION=$(git show refs/remotes/origin/main:Cargo.toml | grep '^version' | awk '{print $3}')
+prev_ref=${1:-refs/remotes/origin/main}
+
+PREV_VERSION=$(git show $prev_ref:Cargo.toml | grep '^version' | awk '{print $3}')
 if [ -z "$PREV_VERSION" ]; then
     echo "❌ Previous version not found."
     exit 1
