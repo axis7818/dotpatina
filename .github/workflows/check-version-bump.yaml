@@ -17,7 +17,7 @@ jobs:
 
       - name: Check if src files changed
         id: changed_files
-        run: echo "::set-output name=files_changed::$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q '^src/' && echo true || echo false)"
+        run: echo "::set-output name=files_changed::$(git diff --name-only main ${{ github.sha }} | grep -q '^src/' && echo true || echo false)"
 
       - name: Check Cargo version
         if: ${{ steps.changed_files.outputs.files_changed == 'true' }}
