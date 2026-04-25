@@ -28,7 +28,10 @@ pub struct PatinaFileRender<'pf> {
 }
 
 /// Renders all the [PatinaFile]s in a [Patina].
-pub fn render_patina(patina: &Patina, tags: Option<Vec<String>>) -> Result<Vec<PatinaFileRender>> {
+pub fn render_patina(
+    patina: &Patina,
+    tags: Option<Vec<String>>,
+) -> Result<Vec<PatinaFileRender<'_>>> {
     let mut hb = Handlebars::new();
     hb.register_escape_fn(handlebars::no_escape);
     hb.set_strict_mode(true);

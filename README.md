@@ -196,7 +196,3 @@ dotpatina apply patina.toml --vars other-vars.toml
 ```
 
 ![gif of updating a patina](./examples/demo/update-patina.gif)
-
-*test rule*
-
-testing breaking a markdown lint rule

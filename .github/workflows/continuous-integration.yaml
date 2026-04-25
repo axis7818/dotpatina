@@ -20,7 +20,7 @@ jobs:
         with:
           globs: "**/*.md"
 
-  quality-checks:
+  cargo-quality-checks:
     runs-on: ubuntu-latest
 
     steps:
