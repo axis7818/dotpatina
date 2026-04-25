@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  quality-checks:
+  markdownlint:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,6 +19,12 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v19
         with:
           globs: "**/*.md"
+
+  quality-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
 
       - name: Install dependencies
         run: cargo build
