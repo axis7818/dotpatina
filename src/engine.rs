@@ -134,13 +134,45 @@ where
             let target_file_str = fs::read_to_string(&target_path).unwrap_or_default();
             let diff = TextDiff::from_lines(&target_file_str, &r.render_str);
 
-            r.any_changes = Some(diff.any_changes());
+            let content_changed = diff.any_changes();
+            r.content_changes = Some(content_changed);
+
+            #[cfg(unix)]
+            if r.patina_file.preserve_permissions && target_path.is_file() {
+                use std::os::unix::fs::PermissionsExt;
+                let template_path = patina.get_patina_path(&r.patina_file.template);
+                let template_mode = fs::metadata(&template_path)
+                    .ok()
+                    .map(|m| m.permissions().mode() & 0o7777);
+                let target_mode = fs::metadata(&target_path)
+                    .ok()
+                    .map(|m| m.permissions().mode() & 0o7777);
+                if let (Some(tmpl_mode), Some(tgt_mode)) = (template_mode, target_mode) {
+                    if tmpl_mode != tgt_mode {
+                        r.permission_change = Some((tgt_mode, tmpl_mode));
+                    }
+                }
+            }
+
+            r.any_changes = Some(content_changed || r.permission_change.is_some());
             if r.any_changes.unwrap() {
-                any_changes = true
+                any_changes = true;
             }
 
             if r.any_changes.unwrap() {
-                files_with_changes.push((target_path, diff.to_string()));
+                let mut diff_str = if content_changed {
+                    diff.to_string()
+                } else {
+                    String::new()
+                };
+                if let Some((old_mode, new_mode)) = r.permission_change {
+                    diff_str.push_str(&format!(
+                        "{}{}\n",
+                        "~ permissions: ".yellow(),
+                        format!("{:04o} → {:04o}", old_mode, new_mode).blue()
+                    ));
+                }
+                files_with_changes.push((target_path, diff_str));
             } else {
                 files_without_changes.push((target_path, diff.to_string()));
             }
@@ -193,22 +225,26 @@ where
                 continue;
             }
 
-            // If the target file exists and there are changes, trash it
-            if use_trash && target_path.is_file() && r.any_changes == Some(true) {
-                if let Err(e) = trash::delete(&target_path) {
-                    return Err(Error::MoveFileToTrash(e));
-                }
-                num_trashed += 1;
-            }
+            let content_changed = r.content_changes == Some(true);
 
-            // Create parent directories and write file
-            if let Some(target_parent) = target_path.parent() {
-                if let Err(e) = fs::create_dir_all(target_parent) {
-                    return Err(Error::FileWrite(target_path, e));
+            if content_changed {
+                // If the target file exists and content changed, trash it
+                if use_trash && target_path.is_file() {
+                    if let Err(e) = trash::delete(&target_path) {
+                        return Err(Error::MoveFileToTrash(e));
+                    }
+                    num_trashed += 1;
                 }
-            }
-            if let Err(e) = fs::write(&target_path, &r.render_str) {
-                return Err(Error::FileWrite(target_path.clone(), e));
+
+                // Create parent directories and write file
+                if let Some(target_parent) = target_path.parent() {
+                    if let Err(e) = fs::create_dir_all(target_parent) {
+                        return Err(Error::FileWrite(target_path, e));
+                    }
+                }
+                if let Err(e) = fs::write(&target_path, &r.render_str) {
+                    return Err(Error::FileWrite(target_path.clone(), e));
+                }
             }
 
             #[cfg(unix)]
@@ -425,6 +461,165 @@ preserve_permissions = true
         let output_path = tmp_dir.get_file_path("output.sh");
         let output_mode = fs::metadata(&output_path).unwrap().permissions().mode();
         assert_eq!(output_mode & 0o7777, template_mode);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_apply_patina_permission_only_change() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp_dir = TmpTestDir::new();
+        let content = "#!/usr/bin/env bash\necho hello\n";
+        let patina_path = tmp_dir.write_file(
+            "perm_only_patina.toml",
+            r#"name = "perm-only"
+description = "Test permission-only change detection"
+
+[[files]]
+template = "script.sh"
+target = "output.sh"
+preserve_permissions = true
+"#,
+        );
+
+        let template_path = tmp_dir.write_file("script.sh", content);
+        fs::set_permissions(&template_path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        // Existing target with same content but different permissions
+        let target_path = tmp_dir.write_file("output.sh", content);
+        fs::set_permissions(&target_path, fs::Permissions::from_mode(0o644)).unwrap();
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+        let apply = engine.apply_patina(false);
+        assert!(apply.is_ok());
+
+        let output = pi.get_all_output();
+        assert!(!output.contains("No file changes detected"));
+        assert!(output.contains("~ permissions: 0644 → 0755"));
+        assert!(output.contains("Applying patina files"));
+
+        // Content should be unchanged
+        assert_eq!(fs::read_to_string(&target_path).unwrap(), content);
+        // Permissions should be updated
+        let output_mode = fs::metadata(&target_path).unwrap().permissions().mode();
+        assert_eq!(output_mode & 0o7777, 0o755);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_apply_patina_no_change_when_permissions_match() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp_dir = TmpTestDir::new();
+        let content = "#!/usr/bin/env bash\necho hello\n";
+        let patina_path = tmp_dir.write_file(
+            "perm_match_patina.toml",
+            r#"name = "perm-match"
+description = "Test no change when content and permissions match"
+
+[[files]]
+template = "script.sh"
+target = "output.sh"
+preserve_permissions = true
+"#,
+        );
+
+        let template_path = tmp_dir.write_file("script.sh", content);
+        fs::set_permissions(&template_path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let target_path = tmp_dir.write_file("output.sh", content);
+        fs::set_permissions(&target_path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+        let apply = engine.apply_patina(false);
+        assert!(apply.is_ok());
+
+        let output = pi.get_all_output();
+        assert!(output.contains("No file changes detected"));
+        assert!(!output.contains("~ permissions:"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_apply_patina_content_and_permission_change() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp_dir = TmpTestDir::new();
+        let patina_path = tmp_dir.write_file(
+            "content_and_perm_patina.toml",
+            r#"name = "content-and-perm"
+description = "Test content and permission change together"
+
+[[files]]
+template = "script.sh"
+target = "output.sh"
+preserve_permissions = true
+"#,
+        );
+
+        let template_path = tmp_dir.write_file("script.sh", "#!/usr/bin/env bash\necho updated\n");
+        fs::set_permissions(&template_path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let target_path = tmp_dir.write_file("output.sh", "#!/usr/bin/env bash\necho original\n");
+        fs::set_permissions(&target_path, fs::Permissions::from_mode(0o644)).unwrap();
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+        let apply = engine.apply_patina(false);
+        assert!(apply.is_ok());
+
+        let output = pi.get_all_output();
+        assert!(!output.contains("No file changes detected"));
+        assert!(output.contains("~ permissions: 0644 → 0755"));
+        assert!(output.contains("echo updated"));
+        assert!(output.contains("Applying patina files"));
+
+        assert_eq!(
+            fs::read_to_string(&target_path).unwrap(),
+            "#!/usr/bin/env bash\necho updated\n"
+        );
+        let output_mode = fs::metadata(&target_path).unwrap().permissions().mode();
+        assert_eq!(output_mode & 0o7777, 0o755);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_apply_patina_permission_difference_ignored_without_preserve() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp_dir = TmpTestDir::new();
+        let content = "#!/usr/bin/env bash\necho hello\n";
+        let patina_path = tmp_dir.write_file(
+            "no_preserve_patina.toml",
+            r#"name = "no-preserve"
+description = "Test that permission differences are ignored without preserve_permissions"
+
+[[files]]
+template = "script.sh"
+target = "output.sh"
+"#,
+        );
+
+        let template_path = tmp_dir.write_file("script.sh", content);
+        fs::set_permissions(&template_path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let target_path = tmp_dir.write_file("output.sh", content);
+        fs::set_permissions(&target_path, fs::Permissions::from_mode(0o644)).unwrap();
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+        let apply = engine.apply_patina(false);
+        assert!(apply.is_ok());
+
+        let output = pi.get_all_output();
+        assert!(output.contains("No file changes detected"));
+        assert!(!output.contains("~ permissions:"));
+
+        // Permissions should remain unchanged since preserve_permissions is false
+        let output_mode = fs::metadata(&target_path).unwrap().permissions().mode();
+        assert_eq!(output_mode & 0o7777, 0o644);
     }
 
     #[test]
