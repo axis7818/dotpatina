@@ -211,6 +211,16 @@ where
                 return Err(Error::FileWrite(target_path.clone(), e));
             }
 
+            #[cfg(unix)]
+            if r.patina_file.preserve_permissions {
+                let template_path = patina.get_patina_path(&r.patina_file.template);
+                let permissions = fs::metadata(&template_path)
+                    .map_err(|e| Error::FileRead(template_path, e))?
+                    .permissions();
+                fs::set_permissions(&target_path, permissions)
+                    .map_err(|e| Error::FileWrite(target_path.clone(), e))?;
+            }
+
             self.pi.output(" ✓\n".green().to_string());
         }
 
@@ -384,6 +394,37 @@ Templates use the Handebars templating language. For more information, see <http
 
         assert!(apply.is_ok());
         assert!(pi.get_all_output().contains("Not applying patina."))
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_apply_patina_preserve_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp_dir = TmpTestDir::new();
+        let patina_path = tmp_dir.write_file(
+            "preserve_perms_patina.toml",
+            r#"name = "preserve-perms"
+description = "Test preserve_permissions"
+
+[[files]]
+template = "script.sh"
+target = "output.sh"
+preserve_permissions = true
+"#,
+        );
+        let template_path = tmp_dir.write_file("script.sh", "#!/usr/bin/env bash\necho hello\n");
+        let template_mode = 0o755;
+        fs::set_permissions(&template_path, fs::Permissions::from_mode(template_mode)).unwrap();
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+        let apply = engine.apply_patina(false);
+        assert!(apply.is_ok());
+
+        let output_path = tmp_dir.get_file_path("output.sh");
+        let output_mode = fs::metadata(&output_path).unwrap().permissions().mode();
+        assert_eq!(output_mode & 0o7777, template_mode);
     }
 
     #[test]

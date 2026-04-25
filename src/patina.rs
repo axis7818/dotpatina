@@ -331,16 +331,19 @@ mod tests {
                     template: PathBuf::from("a.hbs"),
                     target: PathBuf::from("a.txt"),
                     tags: vec!["a".to_string()],
+                    preserve_permissions: false,
                 },
                 PatinaFile {
                     template: PathBuf::from("b.hbs"),
                     target: PathBuf::from("b.txt"),
                     tags: vec!["b".to_string()],
+                    preserve_permissions: false,
                 },
                 PatinaFile {
                     template: PathBuf::from("ab.hbs"),
                     target: PathBuf::from("ab.txt"),
                     tags: vec!["a".to_string(), "b".to_string()],
+                    preserve_permissions: false,
                 },
             ],
         };

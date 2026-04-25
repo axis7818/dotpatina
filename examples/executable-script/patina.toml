@@ -1,0 +1,10 @@
+name = "executable-script"
+description = "Shows how to copy an executable script while preserving its permissions"
+
+[vars]
+greeting = "Hello"
+
+[[files]]
+template = "templates/greet.sh"
+target = "../../output/greet.sh"
+preserve_permissions = true
