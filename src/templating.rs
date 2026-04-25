@@ -17,18 +17,31 @@ pub struct PatinaFileRender<'pf> {
     /// A reference to the [PatinaFile]
     pub patina_file: &'pf PatinaFile,
 
-    /// Whether or not the file has changes.
+    /// Whether or not the file has any changes (content or permissions).
     /// - [None]: if the file has not been diffed with the target yet
     /// - [true]: if the diff detected any changes
     /// - [false]: if the diff did not detect any changes
     pub any_changes: Option<bool>,
+
+    /// Whether or not the file content has changes specifically.
+    /// - [None]: if the file has not been diffed with the target yet
+    /// - [true]: if the content diff detected changes
+    /// - [false]: if the content diff did not detect changes
+    pub content_changes: Option<bool>,
+
+    /// The permission change (old_mode, new_mode) if permissions differ between template and target.
+    /// Always [None] on non-unix platforms or when [PatinaFile::preserve_permissions] is false.
+    pub permission_change: Option<(u32, u32)>,
 
     /// The full render string for this file
     pub render_str: String,
 }
 
 /// Renders all the [PatinaFile]s in a [Patina].
-pub fn render_patina(patina: &Patina, tags: Option<Vec<String>>) -> Result<Vec<PatinaFileRender>> {
+pub fn render_patina(
+    patina: &Patina,
+    tags: Option<Vec<String>>,
+) -> Result<Vec<PatinaFileRender<'_>>> {
     let mut hb = Handlebars::new();
     hb.register_escape_fn(handlebars::no_escape);
     hb.set_strict_mode(true);
@@ -41,6 +54,8 @@ pub fn render_patina(patina: &Patina, tags: Option<Vec<String>>) -> Result<Vec<P
                 patina_file: pf,
                 render_str: render,
                 any_changes: None,
+                content_changes: None,
+                permission_change: None,
             })
         })
         .collect()

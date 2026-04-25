@@ -16,6 +16,11 @@ pub struct PatinaFile {
 
     /// The path to the garget output file
     pub target: PathBuf,
+
+    /// When true, the template file's permissions are copied to the target file after writing.
+    /// Useful for executable scripts.
+    #[serde(default)]
+    pub preserve_permissions: bool,
 }
 
 #[cfg(test)]
@@ -32,6 +37,7 @@ mod tests {
                 template,
                 target,
                 tags: vec![],
+                preserve_permissions: false,
             }
         }
 

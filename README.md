@@ -57,6 +57,8 @@ me.last_name = "Taylor"
 # The template is a handlebar template (or plain file) that is processed.
 # The target is the system location to store the rendered template.
 # Files can also be tagged for filtering when using dotpatina cli commands.
+# Set preserve_permissions = true to copy the template's file permissions to
+# the target — useful for executable scripts.
 
 # ZSH
 [[files]]
@@ -110,6 +112,29 @@ This is useful when variables need to change based on the machine Patinas are be
 ```toml
 me.email = "axis7818@gmail.com"
 ```
+
+### Preserving File Permissions
+
+> **Note:** `preserve_permissions` is only supported on Unix systems.
+
+By default, dotpatina writes target files with standard permissions based on the system umask. When managing executable
+scripts, set `preserve_permissions = true` on a file entry to copy the template's file permissions to the target after
+writing.
+
+```toml
+[[files]]
+template = "scripts/setup.sh"
+target = "~/.local/bin/setup.sh"
+preserve_permissions = true
+```
+
+Make the template executable once, and dotpatina will ensure the target stays executable on every apply:
+
+```sh
+chmod +x scripts/setup.sh
+```
+
+See the full example in [examples/executable-script/](./examples/executable-script/).
 
 ### Template Files
 
