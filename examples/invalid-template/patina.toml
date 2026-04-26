@@ -1,0 +1,6 @@
+name = "invalid-template"
+description = "This is a patina with an invalid template"
+
+[[files]]
+template = "templates/invalid.txt"
+target = "../../output/invalid.txt"
