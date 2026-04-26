@@ -161,9 +161,18 @@ Templates use the Handebars templating language. For more information, see <http
         let results = render_patina(&patina, None);
 
         assert_eq!(results.len(), 3);
-        assert_eq!(results[0].render_result.as_ref().unwrap(), "This is template_a.");
-        assert_eq!(results[1].render_result.as_ref().unwrap(), "This is template_b.");
-        assert_eq!(results[2].render_result.as_ref().unwrap(), "This is template_c.");
+        assert_eq!(
+            results[0].render_result.as_ref().unwrap(),
+            "This is template_a."
+        );
+        assert_eq!(
+            results[1].render_result.as_ref().unwrap(),
+            "This is template_b."
+        );
+        assert_eq!(
+            results[2].render_result.as_ref().unwrap(),
+            "This is template_c."
+        );
     }
 
     #[test]
@@ -221,16 +230,17 @@ Templates use the Handebars templating language. For more information, see <http
         let results = render_patina(&patina, None);
         assert_eq!(results.len(), 1);
         assert!(results[0].render_result.is_err());
-        assert!(results[0].render_result.as_ref().unwrap_err().is_render_template());
+        assert!(results[0]
+            .render_result
+            .as_ref()
+            .unwrap_err()
+            .is_render_template());
     }
 
     #[test]
     fn test_render_patina_disable_templating() {
         let tmp_dir = TmpTestDir::new();
-        let template_path = tmp_dir.write_file(
-            "no-templating.txt",
-            "Hello, {{name}}!\n",
-        );
+        let template_path = tmp_dir.write_file("no-templating.txt", "Hello, {{name}}!\n");
 
         let patina = Patina {
             base_path: None,
@@ -245,7 +255,10 @@ Templates use the Handebars templating language. For more information, see <http
 
         let results = render_patina(&patina, None);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].render_result.as_ref().unwrap(), "Hello, {{name}}!\n");
+        assert_eq!(
+            results[0].render_result.as_ref().unwrap(),
+            "Hello, {{name}}!\n"
+        );
     }
 
     #[test]
@@ -305,7 +318,13 @@ Templates use the Handebars templating language. For more information, see <http
         assert!(results[0].render_result.is_ok());
         assert!(results[1].render_result.is_err());
         assert!(results[2].render_result.is_ok());
-        assert_eq!(results[0].render_result.as_ref().unwrap(), "This is template_a.");
-        assert_eq!(results[2].render_result.as_ref().unwrap(), "This is template_c.");
+        assert_eq!(
+            results[0].render_result.as_ref().unwrap(),
+            "This is template_a."
+        );
+        assert_eq!(
+            results[2].render_result.as_ref().unwrap(),
+            "This is template_c."
+        );
     }
 }

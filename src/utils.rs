@@ -1,8 +1,7 @@
 //! Miscellaneous utilities used throughout the crate
 
 use std::{
-    fmt,
-    fs,
+    fmt, fs,
     path::{Path, PathBuf},
 };
 
