@@ -75,6 +75,10 @@ fn render_patina_file(
         Err(e) => return Err(Error::FileRead(template_path, e)),
     };
 
+    if patina_file.disable_templating {
+        return Ok(template_str);
+    }
+
     match hb.render_template(&template_str, &patina.vars) {
         Ok(render) => Ok(render),
         Err(mut e) => {
@@ -229,6 +233,30 @@ Templates use the Handebars templating language. For more information, see <http
 
         assert!(render.is_err());
         assert!(render.unwrap_err().is_render_template());
+    }
+
+    #[test]
+    fn test_render_patina_disable_templating() {
+        let tmp_dir = TmpTestDir::new();
+        let template_path = tmp_dir.write_file(
+            "no-templating.txt",
+            "Hello, {{name}}!\n",
+        );
+
+        let patina = Patina {
+            base_path: None,
+            name: String::from("no-templating-patina"),
+            description: String::from("Templating is disabled"),
+            vars: None,
+            files: vec![PatinaFile {
+                disable_templating: true,
+                ..PatinaFile::new(template_path, PathBuf::from("output.txt"))
+            }],
+        };
+
+        let render = render_patina(&patina, None);
+        assert!(render.is_ok());
+        assert_eq!(render.unwrap()[0].render_str, "Hello, {{name}}!\n");
     }
 
     #[test]

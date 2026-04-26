@@ -1,0 +1,3 @@
+Hello, {{name}}!
+
+This file has templating disabled. The `name` variable is not provided, so templating would fail, but instead the file is simply copied directly to the target location.
