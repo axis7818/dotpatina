@@ -1,6 +1,7 @@
 //! Miscellaneous utilities used throughout the crate
 
 use std::{
+    fmt,
     fs,
     path::{Path, PathBuf},
 };
@@ -34,6 +35,21 @@ pub enum Error {
 
     /// Failed to trash a file
     MoveFileToTrash(trash::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Message(msg) => write!(f, "{msg}"),
+            Error::FileRead(path, e) => write!(f, "Failed to read \"{}\": {e}", path.display()),
+            Error::FileWrite(path, e) => write!(f, "Failed to write \"{}\": {e}", path.display()),
+            Error::GetUserInput(e) => write!(f, "Failed to get user input: {e}"),
+            Error::TomlParse(e) => write!(f, "Failed to parse TOML: {e}"),
+            Error::RenderTemplate(e) => write!(f, "Template error: {e}"),
+            Error::InvalidVars() => write!(f, "Invalid variables"),
+            Error::MoveFileToTrash(e) => write!(f, "Failed to move file to trash: {e}"),
+        }
+    }
 }
 
 /// A Result type that uses the [`Error`] enum

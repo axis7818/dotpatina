@@ -10,8 +10,8 @@ use crate::patina::patina_file::PatinaFile;
 use crate::patina::Patina;
 use crate::utils::{Error, Result};
 
-/// [PatinaFileRender] is an object that holds a reference to a [PatinaFile] and a
-/// [String] of the final render.
+/// [PatinaFileRender] is an object that holds a reference to a [PatinaFile] and the result of
+/// rendering it.
 #[derive(Debug)]
 pub struct PatinaFileRender<'pf> {
     /// A reference to the [PatinaFile]
@@ -33,30 +33,27 @@ pub struct PatinaFileRender<'pf> {
     /// Always [None] on non-unix platforms or when [PatinaFile::preserve_permissions] is false.
     pub permission_change: Option<(u32, u32)>,
 
-    /// The full render string for this file
-    pub render_str: String,
+    /// The rendered content, or the error that occurred during rendering.
+    pub render_result: Result<String>,
 }
 
 /// Renders all the [PatinaFile]s in a [Patina].
-pub fn render_patina(
-    patina: &Patina,
-    tags: Option<Vec<String>>,
-) -> Result<Vec<PatinaFileRender<'_>>> {
+///
+/// All files are attempted regardless of individual failures. Check
+/// [PatinaFileRender::render_result] on each entry to determine whether it succeeded.
+pub fn render_patina(patina: &Patina, tags: Option<Vec<String>>) -> Vec<PatinaFileRender<'_>> {
     let mut hb = Handlebars::new();
     hb.register_escape_fn(handlebars::no_escape);
     hb.set_strict_mode(true);
 
     patina
         .files_for_tags(tags)
-        .map(|pf| {
-            let render = render_patina_file(&hb, patina, pf)?;
-            Ok(PatinaFileRender {
-                patina_file: pf,
-                render_str: render,
-                any_changes: None,
-                content_changes: None,
-                permission_change: None,
-            })
+        .map(|pf| PatinaFileRender {
+            patina_file: pf,
+            render_result: render_patina_file(&hb, patina, pf),
+            any_changes: None,
+            content_changes: None,
+            permission_change: None,
         })
         .collect()
 }
@@ -125,17 +122,12 @@ Templates use the Handebars templating language. For more information, see <http
             )],
         };
 
-        let render = render_patina(&patina, None);
+        let results = render_patina(&patina, None);
 
-        assert!(render.is_ok());
-        let render = render.unwrap();
-        assert_eq!(render.len(), 1);
-        let render = &render[0];
-
-        assert_eq!(render.patina_file, &patina.files[0]);
-
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].patina_file, &patina.files[0]);
         assert_eq!(
-            render.render_str,
+            results[0].render_result.as_ref().unwrap(),
             r#"Hello, Patina User!
 This is an example Patina template file.
 Templates use the Handebars templating language. For more information, see <https://handlebarsjs.com/guide/>.
@@ -166,15 +158,12 @@ Templates use the Handebars templating language. For more information, see <http
             ],
         };
 
-        let render = render_patina(&patina, None);
+        let results = render_patina(&patina, None);
 
-        assert!(render.is_ok());
-        let render = render.unwrap();
-
-        assert_eq!(render.len(), 3);
-        assert_eq!(render[0].render_str, "This is template_a.");
-        assert_eq!(render[1].render_str, "This is template_b.");
-        assert_eq!(render[2].render_str, "This is template_c.");
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].render_result.as_ref().unwrap(), "This is template_a.");
+        assert_eq!(results[1].render_result.as_ref().unwrap(), "This is template_b.");
+        assert_eq!(results[2].render_result.as_ref().unwrap(), "This is template_c.");
     }
 
     #[test]
@@ -196,13 +185,13 @@ Templates use the Handebars templating language. For more information, see <http
             )],
         };
 
-        let render = render_patina(&patina, None);
-        assert!(render.is_err());
-        let render = render.unwrap_err();
-        assert!(render.is_render_template());
-        let err = render.as_render_template().unwrap();
+        let results = render_patina(&patina, None);
+        assert_eq!(results.len(), 1);
+        let err = results[0].render_result.as_ref().unwrap_err();
+        assert!(err.is_render_template());
+        let render_err = err.as_render_template().unwrap();
         assert_eq!(
-            err.reason().to_string(),
+            render_err.reason().to_string(),
             "Failed to access variable in strict mode Some(\"name.first\")"
         );
     }
@@ -229,10 +218,10 @@ Templates use the Handebars templating language. For more information, see <http
             )],
         };
 
-        let render = render_patina(&patina, None);
-
-        assert!(render.is_err());
-        assert!(render.unwrap_err().is_render_template());
+        let results = render_patina(&patina, None);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].render_result.is_err());
+        assert!(results[0].render_result.as_ref().unwrap_err().is_render_template());
     }
 
     #[test]
@@ -254,9 +243,9 @@ Templates use the Handebars templating language. For more information, see <http
             }],
         };
 
-        let render = render_patina(&patina, None);
-        assert!(render.is_ok());
-        assert_eq!(render.unwrap()[0].render_str, "Hello, {{name}}!\n");
+        let results = render_patina(&patina, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].render_result.as_ref().unwrap(), "Hello, {{name}}!\n");
     }
 
     #[test]
@@ -279,11 +268,44 @@ Templates use the Handebars templating language. For more information, see <http
             )],
         };
 
-        let render = render_patina(&patina, None);
-        assert!(render.is_ok());
+        let results = render_patina(&patina, None);
+        assert_eq!(results.len(), 1);
         assert_eq!(
-            render.unwrap()[0].render_str,
+            results[0].render_result.as_ref().unwrap(),
             "This file has {{ escaped }} handlebars\n"
         );
+    }
+
+    #[test]
+    fn test_render_patina_partial_failure() {
+        let tmp_dir = TmpTestDir::new();
+        let template_a_path = tmp_dir.write_file("template_a.txt.hbs", "This is {{ A }}.");
+        let template_b_path =
+            tmp_dir.write_file("template_b.txt.hbs", "This is {{ missing_var }}.");
+        let template_c_path = tmp_dir.write_file("template_c.txt.hbs", "This is {{ C }}.");
+
+        let patina = Patina {
+            base_path: None,
+            name: String::from("partial-failure-patina"),
+            description: String::from("Some templates fail to render"),
+            vars: Some(json!({
+                "A": "template_a",
+                "C": "template_c",
+            })),
+            files: vec![
+                PatinaFile::new(template_a_path, PathBuf::from("output_a.txt")),
+                PatinaFile::new(template_b_path, PathBuf::from("output_b.txt")),
+                PatinaFile::new(template_c_path, PathBuf::from("output_c.txt")),
+            ],
+        };
+
+        let results = render_patina(&patina, None);
+
+        assert_eq!(results.len(), 3);
+        assert!(results[0].render_result.is_ok());
+        assert!(results[1].render_result.is_err());
+        assert!(results[2].render_result.is_ok());
+        assert_eq!(results[0].render_result.as_ref().unwrap(), "This is template_a.");
+        assert_eq!(results[2].render_result.as_ref().unwrap(), "This is template_c.");
     }
 }

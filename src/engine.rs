@@ -67,16 +67,30 @@ where
         patina.load_vars_files(self.variables_files.clone())?;
 
         info!("got patina: {:#?}", patina);
-        let render = templating::render_patina(&patina, self.tags.clone())?;
+        let results = templating::render_patina(&patina, self.tags.clone());
 
         self.pi
-            .output(format!("Rendered {} files\n\n", render.len()));
-        for r in render.iter() {
+            .output(format!("Rendered {} files\n\n", results.len()));
+
+        let mut any_errors = false;
+        for r in &results {
             self.pi.output_file_header(&r.patina_file.template);
-            self.pi.output(format!("{}\n", r.render_str));
+            match &r.render_result {
+                Ok(render_str) => self.pi.output(format!("{}\n", render_str)),
+                Err(e) => {
+                    any_errors = true;
+                    self.pi.output(format!("{}\n\n", e.to_string().red()));
+                }
+            }
         }
 
-        Ok(())
+        if any_errors {
+            Err(Error::Message(
+                "Some templates failed to render".to_string(),
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     /// Applies all the Patina files
@@ -85,8 +99,23 @@ where
         patina.load_vars_files(self.variables_files.clone())?;
 
         info!("got patina: {:#?}", patina);
-        let mut render = templating::render_patina(&patina, self.tags.clone())?;
+        let results = templating::render_patina(&patina, self.tags.clone());
 
+        let mut any_render_errors = false;
+        for r in &results {
+            if let Err(e) = &r.render_result {
+                any_render_errors = true;
+                self.pi.output_file_header(&r.patina_file.template);
+                self.pi.output(format!("{}\n", e.to_string().red()));
+            }
+        }
+        if any_render_errors {
+            return Err(Error::Message(
+                "Some templates failed to render".to_string(),
+            ));
+        }
+
+        let mut render = results;
         let any_changes = self.generate_and_display_diffs(&patina, &mut render);
 
         // If there are no changes, quit
@@ -132,7 +161,8 @@ where
             let target_path = patina.get_patina_path(&r.patina_file.target);
 
             let target_file_str = fs::read_to_string(&target_path).unwrap_or_default();
-            let diff = TextDiff::from_lines(&target_file_str, &r.render_str);
+            let render_str = r.render_result.as_ref().unwrap();
+            let diff = TextDiff::from_lines(&target_file_str, render_str);
 
             let content_changed = diff.any_changes();
             r.content_changes = Some(content_changed);
@@ -242,7 +272,7 @@ where
                         return Err(Error::FileWrite(target_path, e));
                     }
                 }
-                if let Err(e) = fs::write(&target_path, &r.render_str) {
+                if let Err(e) = fs::write(&target_path, r.render_result.as_ref().unwrap()) {
                     return Err(Error::FileWrite(target_path.clone(), e));
                 }
             }
@@ -348,7 +378,98 @@ Templates use the Handebars templating language. For more information, see <http
 
         let render = engine.render_patina();
         assert!(render.is_err());
-        assert!(render.unwrap_err().is_file_read());
+        assert!(render.unwrap_err().is_message());
+    }
+
+    #[test]
+    fn test_render_patina_partial_failure() {
+        let tmp_dir = TmpTestDir::new();
+        let patina_path = tmp_dir.write_file(
+            "partial_failure_patina.toml",
+            r#"
+                name = "partial-failure-patina"
+                description = "Some templates fail"
+
+                [vars]
+                A = "value_a"
+                C = "value_c"
+
+                [[files]]
+                template = "template_a.txt.hbs"
+                target = "output_a.txt"
+
+                [[files]]
+                template = "template_b.txt.hbs"
+                target = "output_b.txt"
+
+                [[files]]
+                template = "template_c.txt.hbs"
+                target = "output_c.txt"
+            "#,
+        );
+        tmp_dir.write_file("template_a.txt.hbs", "This is {{ A }}.");
+        tmp_dir.write_file("template_b.txt.hbs", "This is {{ missing_var }}.");
+        tmp_dir.write_file("template_c.txt.hbs", "This is {{ C }}.");
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+
+        let render = engine.render_patina();
+        assert!(render.is_err());
+
+        let output = pi.get_all_output();
+        assert!(output.contains("Rendered 3 files"));
+        assert!(output.contains("This is value_a."));
+        assert!(output.contains("This is value_c."));
+        assert!(output.contains("template_b.txt.hbs"));
+    }
+
+    #[test]
+    fn test_render_patina_error_has_trailing_newline() {
+        let tmp_dir = TmpTestDir::new();
+        let patina_path = tmp_dir.write_file(
+            "error_spacing_patina.toml",
+            r#"
+                name = "error-spacing-patina"
+                description = "Verify spacing after render errors"
+
+                [[files]]
+                template = "bad.txt.hbs"
+                target = "output.txt"
+
+                [[files]]
+                template = "bad2.txt.hbs"
+                target = "output2.txt"
+
+                [[files]]
+                template = "bad3.txt.hbs"
+                target = "output3.txt"
+            "#,
+        );
+        tmp_dir.write_file("bad.txt.hbs", "{{ missing_var }}");
+        tmp_dir.write_file("bad2.txt.hbs", "{{ missing_var }}");
+        tmp_dir.write_file("bad3.txt.hbs", "{{ missing_var }}");
+
+        let pi = TestPatinaInterface::new();
+        let engine = PatinaEngine::new(&pi, &patina_path, vec![], vec![]);
+
+        assert!(engine.render_patina().is_err());
+
+        assert_eq!(
+            pi.get_all_output(),
+            r#"Rendered 3 files
+
+bad.txt.hbs
+Template error: Error rendering "bad.txt.hbs" line 1, col 1: Failed to access variable in strict mode Some("missing_var")
+
+bad2.txt.hbs
+Template error: Error rendering "bad2.txt.hbs" line 1, col 1: Failed to access variable in strict mode Some("missing_var")
+
+bad3.txt.hbs
+Template error: Error rendering "bad3.txt.hbs" line 1, col 1: Failed to access variable in strict mode Some("missing_var")
+
+"#
+        );
     }
 
     #[test]
