@@ -21,6 +21,10 @@ pub struct PatinaFile {
     /// Useful for executable scripts.
     #[serde(default)]
     pub preserve_permissions: bool,
+
+    /// When true, templating is disabled for this PatinaFile. The file is simply copied from `template` to `target`.
+    #[serde(default)]
+    pub disable_templating: bool,
 }
 
 #[cfg(test)]
@@ -38,6 +42,7 @@ mod tests {
                 target,
                 tags: vec![],
                 preserve_permissions: false,
+                disable_templating: false,
             }
         }
 

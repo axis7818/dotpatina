@@ -55,3 +55,7 @@ CLI args (clap)
 
 After making functional code changes (adding, removing, or modifying existing behavior) make sure to run tests to ensure no functionality has broken.
 If the tests are not consistent with new functionality, update (add, remove, or modify) the tests to account for these changes.
+
+### Formatting
+
+Run `cargo fmt` after making code changes, then verify with `cargo fmt -- --check` before considering the work done.

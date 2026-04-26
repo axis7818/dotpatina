@@ -1,0 +1,7 @@
+name = "no-templating"
+description = "This patina demonstrates a file that has templating disabled."
+
+[[files]]
+template = "templates/no-templating.txt"
+target = "../../output/no-templating.txt"
+disable_templating = true

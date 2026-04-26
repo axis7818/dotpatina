@@ -110,7 +110,8 @@ impl PatinaCli {
         };
 
         if let Err(e) = result {
-            panic!("{:?}", e)
+            eprintln!("Error: {e}");
+            std::process::exit(1);
         }
     }
 }

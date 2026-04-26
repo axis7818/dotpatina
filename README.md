@@ -189,6 +189,21 @@ customCommands:
     stream: true
 ```
 
+#### Disabling Templating
+
+Set `disable_templating = true` on a file entry to skip Handlebars rendering entirely. The file is copied verbatim from
+`template` to `target`. This is useful when a file contains `{{` syntax that should not be interpreted as a template
+(e.g. GitHub Actions workflows, Helm charts, or any config that uses Handlebars-like syntax).
+
+```toml
+[[files]]
+template = "templates/workflow.yml"
+target = "~/.config/workflow.yml"
+disable_templating = true
+```
+
+See the full example in [examples/no-templating/](./examples/no-templating/).
+
 ### Render a Patina
 
 `dotpatina` supports rendering Patina files to stdout for previewing.

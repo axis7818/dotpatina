@@ -1,0 +1,3 @@
+Hello, {{name}}!
+
+This template is invalid... the `name` variable is not present.
