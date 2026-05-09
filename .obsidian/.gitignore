@@ -1,0 +1,6 @@
+app.json
+workspace.json
+
+plugins/**
+!plugins/**/
+!plugins/**/data.json
